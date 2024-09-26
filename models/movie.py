@@ -1,5 +1,8 @@
 from dataclasses import dataclass, field
+from multiprocessing.util import is_exiting
 from typing import Optional
+
+from database_connection import movies_coll
 
 
 # todo: consider classmethod / factory beam
@@ -74,15 +77,22 @@ class Movie:
             raise ValueError("Rating must be a float between 0.0 and 10.0.")
         return rating
 
-    """
-    Validates and formats the title.
-    """
     def to_dict(self) -> dict:
-        """
-        Converts the Movie instance to a dictionary.
-        """
-        movie_dict = self.to_dict()
-        return movie_dict
+        """Converts the Movie instance to a dictionary, excluding None values."""
+        return {key: value for key, value in {
+            "title": self.title,
+            "year": self.year,
+            "director": self.director,
+            "cast": self.cast,
+            "summary": self.summary,
+            "short_summary": self.short_summary,
+            "imdb_id": self.imdb_id,
+            "runtime": self.runtime,
+            "youtube_trailer": self.youtube_trailer,
+            "rating": self.rating,
+            "movie_poster": self.movie_poster,
+            "writers": self.writers
+        }.items() if value is not None}
 
     def update_summary(self, new_summary: str):
         """
@@ -126,5 +136,72 @@ class Movie:
             f"Movie Poster: {self.movie_poster}\n"
             f"Writers: {self.writers}\n"
         )
+
+    # Function to interact with the user and add a movie with optional data
+    @staticmethod
+    def add_movie_by_user():
+        try:
+            # Get mandatory data
+            movie_title = input("\nEnter the movie title: ").strip().title()
+            director_name = input("Enter the director's name: ").strip().title()
+            year = input("Enter the release year: ").strip()
+
+            # Validate that the mandatory fields are provided
+            if not director_name or not movie_title or not year:
+                raise ValueError("The director's name, movie title, and year must be provided.")
+
+            # Convert year to int
+            year = int(year)
+
+        except ValueError as ve:
+            print(f"Input error: {ve}")
+            return
+
+        # Optional data input
+        cast = input("Enter the cast (optional): ").strip().title() or None
+        summary = input("Enter the summary (optional): ").strip().capitalize() or None
+        short_summary = input("Enter the short summary (optional): ").strip().capitalize() or None
+        imdb_id = input("Enter the IMDb ID (optional): ").strip() or None
+        runtime = input("Enter the runtime in minutes (optional): ").strip()
+        runtime = int(runtime) if runtime else None
+        rating = input("Enter the rating (optional, 0.0 - 10.0): ").strip()
+        rating = float(rating) if rating else None
+        youtube_trailer = input("Enter the YouTube trailer URL (optional): ").strip() or None
+        movie_poster = input("Enter the movie poster URL (optional): ").strip() or None
+        writers = input("Enter the writers (optional): ").strip().title() or None
+
+        # Create the movie object
+        try:
+            movie = Movie(
+                title=movie_title,
+                year=year,
+                director=director_name,
+                cast=cast,
+                summary=summary,
+                short_summary=short_summary,
+                imdb_id=imdb_id,
+                runtime=runtime,
+                rating=rating,
+                youtube_trailer=youtube_trailer,
+                movie_poster=movie_poster,
+                writers=writers
+            )
+        except ValueError as ve:
+            print(f"Error creating movie: {ve}")
+            return
+
+        movie_exists = bool(movies_coll.find_one({'title': movie.title}))
+
+        # Save to database (or update if it exists)
+        movies_coll.update_one(
+            {'title': movie.title, 'director': movie.director, 'year': movie.year},
+            {'$set': movie.to_dict()},
+            upsert=True
+        )
+
+        if movie_exists:
+            print(f"Movie '{movie.title}' by {movie.director} has been updated in the database.")
+        else:
+            print(f"Movie '{movie.title}' by {movie.director} has been added in the database.")
 
 

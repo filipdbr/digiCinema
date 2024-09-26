@@ -55,7 +55,7 @@ movies_validator = {
         "description": "must be a string if provided"
       },
       "rating": {
-        "bsonType": "float",
+        "bsonType": "double",
         "description": "must be a string if provided"
       },
       "movie_poster": {
@@ -157,37 +157,35 @@ Imports the csv file to the database
 Data cleaning: duplicates removal
 '''
 
-# creating the set to keep the duplicated movies
-movies_to_add = set()
-
 if __name__ == "__main__":
 
     create_collections()
+
+    # creating the set to keep the duplicated movies
+    existing_movies = set()
 
     # opening the file in the read mode, encoding utf-8
     with open(csv_path, "r", encoding="utf-8") as csvfile:
         movies_data = DictReader(csvfile)
 
-        # converting each row of data into a dictionary
-        # added tqdm to add some visual effects to the app
         for row in tqdm(movies_data, desc="Importing movies data", unit=" movies"):
             mapped_row = map_csv_movie(row)
-
-            # creation of the key
             movie_key = (mapped_row['imdb_id'], mapped_row['title'])
 
-            if movie_key in movies_to_add:
-                print(f"The duplicate found: {mapped_row['title']}, id imdb: {mapped_row['imdb_id']}")
+            if movie_key in existing_movies:
+                print(f"Duplicate found: {mapped_row['title']}, IMDb ID: {mapped_row['imdb_id']}")
             else:
+                # Update the movies collection
                 movies_coll.insert_one(mapped_row)
-                movies_to_add.add(movie_key)
+                existing_movies.add(movie_key)
 
+                # Update the directors collection as well
                 director_name = mapped_row['director']
-                movie = mapped_row['title']
+                movie_title = mapped_row['title']
 
                 directors_coll.update_one(
                     {"name": director_name},
-                    {"$addToSet": {"movies": movie}},
+                    {"$addToSet": {"movies": movie_title}},
                     upsert=True
                 )
 
