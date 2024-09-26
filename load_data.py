@@ -1,20 +1,13 @@
+from pymongo.errors import CollectionInvalid, OperationFailure
 from tqdm import tqdm
 from csv import DictReader
 
-from pymongo import MongoClient
+from database_connection import cinema_db, directors_coll, movies_coll
 
 '''
-Part 1: connection to the database
-'''
+This module initializes the dababases and creates collections for the first time 
 
-# connection with the local server on the port 27017 (default)
-client = MongoClient('localhost', 27017)
-
-# connection with the database (created already in mongodb)
-cinema_db = client['cinema']
-
-'''
-Part 2: Creation of schema by using a validator & creation of the collection
+Part 1: Creation of schema by validators and update of databases
 '''
 
 # Movies validator
@@ -98,22 +91,36 @@ director_validator = {
     }
 }
 
-# creation of the collections
-cinema_db.create_collection("movies", validator=movies_validator)
-cinema_db.create_collection("directors", validator=director_validator)
+# Function which will be used in create_collections. It modifies the current validator.
+def create_or_update_collection(collection_name, validator):
+    try:
+        # Try to create the collection with the validator
+        cinema_db.create_collection(collection_name, validator=validator)
+    except CollectionInvalid:
+        # If collection exists, update its validator
+        try:
+            cinema_db.command({
+                'collMod': collection_name,
+                'validator': validator
+            })
+        except OperationFailure as e:
+            print(f"Failed to update validator for collection '{collection_name}': {str(e)}")
 
-# connection with the collections
-movies_coll = cinema_db["movies"]
-directors_coll = cinema_db["directors"]
+# creation of collections
+def create_collections():
+    # Create or update the movies collection with its validator
+    create_or_update_collection("movies", movies_validator)
 
-# Create a composite index on title and imdb_id, ensuring unique combinations
-# it is necessary as there are some movies with the same title, which are not duplicates
-# added index for the director
-movies_coll.create_index([("title", 1), ("imdb_id", 1)], unique=True)
-directors_coll.create_index("name", unique=True)
+    # Create or update the directors collection with its validator
+    create_or_update_collection("directors", director_validator)
+
+    # Create indexes after collection creation or update
+    # Ensure that the unique constraints are enforced
+    movies_coll.create_index([("title", 1), ("imdb_id", 1)], unique=True)
+    directors_coll.create_index("name", unique=True)
 
 '''
-Part 3: importing csv file from local + data cleaning and normalization
+Part 2: importing csv file from local + data cleaning and normalization
 '''
 
 # defining the file path
@@ -153,39 +160,45 @@ Data cleaning: duplicates removal
 # creating the set to keep the duplicated movies
 movies_to_add = set()
 
-# opening the file in the read mode, encoding utf-8
-with open(csv_path, "r", encoding="utf-8") as csvfile:
-    movies_data = DictReader(csvfile)
+if __name__ == "__main__":
 
-    # converting each row of data into a dictionary
-    # added tqdm to add some visual effects to the app
-    for row in tqdm(movies_data, desc="Importing movies data", unit=" movies"):
-        mapped_row = map_csv_movie(row)
+    create_collections()
 
-        # creation of the key
-        movie_key = (mapped_row['imdb_id'], mapped_row['title'])
+    # opening the file in the read mode, encoding utf-8
+    with open(csv_path, "r", encoding="utf-8") as csvfile:
+        movies_data = DictReader(csvfile)
 
-        if movie_key in movies_to_add:
-            print(f"The duplicate found: {mapped_row['title']}, id imdb: {mapped_row['imdb_id']}")
-        else:
-            movies_coll.insert_one(mapped_row)
-            movies_to_add.add(movie_key)
+        # converting each row of data into a dictionary
+        # added tqdm to add some visual effects to the app
+        for row in tqdm(movies_data, desc="Importing movies data", unit=" movies"):
+            mapped_row = map_csv_movie(row)
 
-            director_name = mapped_row['director']
-            movie = mapped_row['title']
+            # creation of the key
+            movie_key = (mapped_row['imdb_id'], mapped_row['title'])
 
-            directors_coll.update_one(
-                {"name": director_name},
-                {"$addToSet": {"movies": movie}},
-                upsert=True
-            )
+            if movie_key in movies_to_add:
+                print(f"The duplicate found: {mapped_row['title']}, id imdb: {mapped_row['imdb_id']}")
+            else:
+                movies_coll.insert_one(mapped_row)
+                movies_to_add.add(movie_key)
+
+                director_name = mapped_row['director']
+                movie = mapped_row['title']
+
+                directors_coll.update_one(
+                    {"name": director_name},
+                    {"$addToSet": {"movies": movie}},
+                    upsert=True
+                )
 
 
-# final message informing of the result
-if movies_coll.count_documents({}) != 0:
-    print("Movies have successfully been added to the database")
-elif movies_coll.count_documents({}) == 0:
-    print("No movies has been added to the database")
+    # final message informing of the result
+    if movies_coll.count_documents({}) != 0:
+        print(f"New records have been added to the database:\n"
+              f"{movies_coll.count_documents({})} movies\n"
+              f"{directors_coll.count_documents({})} directors ")
+    elif movies_coll.count_documents({}) == 0:
+        print("No movies has been added to the database")
 
 
 

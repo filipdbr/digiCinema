@@ -1,5 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Set
+
+from database_connection import directors_coll
+
+
+# todo: consider classmethod / factory beam
 
 @dataclass
 class Director:
@@ -11,6 +16,7 @@ class Director:
     def __post_init__(self):
         #Validates the director's name after initialization
         self.name = self._validate_name(self.name)
+        self.movies = {movie.strip().title() for movie in self.movies} # changing formatting of text to title()
 
     def _validate_name(self, name: str) -> str:
         """
@@ -35,3 +41,27 @@ class Director:
         Retrieves the set of movies directed by the director.
         """
         return self.movies
+
+    def to_dict(self) -> dict:
+        """
+        Changes director instance to a dictionary.
+        """
+        director_dict = asdict(self)
+        director_dict['movies'] = list(director_dict['movies'])
+        return director_dict
+
+    def save_to_db(self):
+        """
+        Saves the director to the *directors* database.
+        """
+        director_dict = self.to_dict()
+        directors_coll.update_one(
+            {'name': self.name},
+            {'$addToSet': {'movies': {'$each': director_dict['movies']}}},
+            upsert=True
+        )
+        return print(f"Director {self.name} has been saved to database.")
+
+
+
+
