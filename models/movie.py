@@ -5,7 +5,6 @@ from typing import Optional
 from database_connection import movies_coll
 
 
-# todo: consider classmethod / factory beam
 @dataclass
 class Movie:
     """Represents a movie"""
@@ -203,5 +202,61 @@ class Movie:
             print(f"Movie '{movie.title}' by {movie.director} has been updated in the database.")
         else:
             print(f"Movie '{movie.title}' by {movie.director} has been added in the database.")
+
+    @staticmethod
+    def top_number_of_films(number: int):
+
+        pipeline = [
+        {
+            # Removing empty cells
+            '$match': {
+                'cast': {'$ne': ''}  #
+            }
+        },
+        {
+            # Split cast into single actors
+            '$project': {
+                'title': 1,
+                'cast': {
+                    '$split': ['$cast', '|']  # Split by | as it's a separator
+                }
+            }
+        },
+        {
+            # Splitting documents per actors
+            '$unwind': '$cast'
+        },
+        {
+            # Trim white spaces
+            '$project': {
+                'title': 1,
+                'cast': {
+                    '$trim': {'input': '$cast'}
+                }
+            }
+        },
+        {
+            '$group': {
+                '_id': '$cast',
+                'movies': {'$addToSet': '$title'},
+                'movie_count': {'$sum': 1}
+            }
+        },
+        {
+            '$sort': {'movie_count': -1}
+        },
+        {
+            '$limit': number
+        }
+    ]
+
+        # Execute the aggregation
+        result = movies_coll.aggregate(pipeline)
+
+        # Print the result
+        print(f"\nTop {number} of actors by number of appearances/films:")
+        for actor in result:
+            print(f"Actor: {actor['_id']}, Movies: {actor['movies']}, Total Movies: {actor['movie_count']}")
+
 
 

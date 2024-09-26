@@ -21,5 +21,21 @@ lynch.get_movies()
 lynch.get_avg_rating()
 
 # Implémenter la méthode d'ajout de film par interaction utilisateur
-Movie.add_movie_by_user()
+#Movie.add_movie_by_user()
+
+# Lister les 5 réalisateurs les mieux notés
+# Comment: I gave the user an option to choose a number of directors they want to see
+Director.top_rating(5)
+
+# Les 5 réalisateurs dont les films ont la durée moyenne la plus importante
+# Comment: Again I gave a user an option to choose
+Director.top_avg_lenght(5)
+
+# Les 5 réalisateurs ayant le plus de films
+# Comment: Again I gave a user an option to choose
+Director.top_number_of_movies(5)
+
+# Requête d'agrégation : Le résultat de cette requête doit me donner la liste et le nombre de films
+# des 15 acteurs le splus présents (avec leurs films,cf screenshot ci-dessus)
+Movie.top_number_of_films(15)
 

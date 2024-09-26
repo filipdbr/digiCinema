@@ -4,7 +4,6 @@ from typing import Set
 from database_connection import directors_coll, movies_coll
 
 
-# todo: consider classmethod / factory beam
 @dataclass
 class Director:
     """Represents a film director with a name and a set of movies they have directed."""
@@ -110,5 +109,81 @@ class Director:
             for movie in director['movies']:
                 print(f"- {movie}")
 
+    @staticmethod
+    def top_rating(number: int):
 
+        pipeline = [
+                {
+                    '$group': {
+                        '_id': '$director',
+                        'avg_rating': {
+                            '$avg': '$rating'
+                        }
+                    }
+                }, {
+                '$sort': {
+                    'avg_rating': -1
+                }
+            }, {
+                '$limit': number
+            }
+        ]
 
+        print(f"\nTop {number} directors by average rating:")
+        for i, director in enumerate(movies_coll.aggregate(pipeline), start=1):
+            print(f"{i}. {director['_id']}, rating: {director['avg_rating']}")
+
+    @staticmethod
+    def top_avg_lenght(number: int):
+
+        pipeline = [
+            {
+                '$group': {
+                    '_id': '$director',
+                    'avg_length': {
+                        '$avg': '$runtime'
+                    }
+                }
+            }, {
+                '$project': {
+                    'avg_length': {
+                        '$round': ['$avg_length', 2]
+                    }
+                }
+            }, {
+                '$sort': {
+                    'avg_length': -1
+                }
+            }, {
+                '$limit': number
+            }
+        ]
+
+        print(f"\nTop {number} directors by average lenght of the movies:")
+        for i, director in enumerate(movies_coll.aggregate(pipeline), start=1):
+            print(f"{i}. {director['_id']}, average length: {director['avg_length']} minutes")
+
+    @staticmethod
+    def top_number_of_movies(number: int):
+
+        pipeline = [
+        {
+            '$group': {
+                '_id': '$director',
+                'films_count': {
+                    '$sum': 1
+                }
+            }
+        }, {
+            '$sort': {
+                'films_count': -1,
+                '_id': 1
+            }
+        }, {
+            '$limit': number
+        }
+    ]
+
+        print(f"\nTop {number} directors by number of movies:")
+        for i, director in enumerate(movies_coll.aggregate(pipeline), start=1):
+            print(f"{i}. {director['_id']}, {director['films_count']} films")
