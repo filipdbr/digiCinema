@@ -1,4 +1,4 @@
-import csv
+from tqdm import tqdm
 from csv import DictReader
 
 from pymongo import MongoClient
@@ -134,7 +134,8 @@ with open(csv_path, "r", encoding="utf-8") as csvfile:
     movies_data = DictReader(csvfile)
 
     # converting each row of data into a dictionary
-    for row in movies_data:
+    # added tqdm to add some visual effects to the app
+    for row in tqdm(movies_data, desc="Importing movies", unit=" movies"):
         mapped_row = map_csv(row)
 
         # creation of the key
