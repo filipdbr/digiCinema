@@ -3,9 +3,7 @@ from typing import Set
 
 from database_connection import directors_coll
 
-
 # todo: consider classmethod / factory beam
-
 @dataclass
 class Director:
     """Represents a film director with a name and a set of movies they have directed."""
