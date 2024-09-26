@@ -47,7 +47,7 @@ movies_validator = {
         "description": "must be a string if provided"
       },
       "runtime": {
-        "bsonType": "string",
+        "bsonType": "int",
         "description": "must be a string if provided"
       },
       "youtube_trailer": {
@@ -55,7 +55,7 @@ movies_validator = {
         "description": "must be a string if provided"
       },
       "rating": {
-        "bsonType": "string",
+        "bsonType": "float",
         "description": "must be a string if provided"
       },
       "movie_poster": {
@@ -144,9 +144,9 @@ def map_csv_movie(row):
         'summary': row.get('Summary', '').strip().capitalize(),
         'short_summary': row.get('Short Summary', '').strip().capitalize(),
         'imdb_id': row.get('IMDB ID', '').strip(),
-        'runtime': row.get('Runtime', '').strip(),
+        'runtime': int(row.get('Runtime', '').strip()),
         'youtube_trailer': row.get('YouTube Trailer', '').strip(),
-        'rating': row.get('Rating', '').strip(),
+        'rating': float(row.get('Rating', '').strip()),
         'movie_poster': row.get('Movie Poster', '').strip(),
         'writers': row.get('Writers', '').strip().title()
     }
