@@ -77,15 +77,18 @@ movies_validator = {
   }
 }
 
-
 # creation of the collection
 cinema_db.create_collection("movies", validator=movies_validator)
 
 # connection with the collection
 movies_coll = cinema_db["movies"]
 
+# Create a composite index on title and imdb_id, ensuring unique combinations
+# it is necessary as there are some movies with the same title, which are not duplicates
+movies_coll.create_index([("title", 1), ("imdb_id", 1)], unique=True)
+
 '''
-Part 3: importing csv file from local
+Part 3: importing csv file from local + data cleaning and normalization
 '''
 
 # defining the file path
@@ -94,36 +97,61 @@ csv_path = r"C:\Users\filip\OneDrive\Pulpit\Diginamic\27 - MongoDB avec Python\m
 # creating a mapping function
 '''
 Maps the CSV row fields to the corresponding MongoDB schema fields.
-It also casts the year filed to integer.
+
+Data normalization and data cleaning:
+    - casts the year
+    - trims the white space
+    - provides consistent formatting, such as capitalizing the title and director names
 '''
 
 def map_csv(row):
     return {
-        'title': row.get('Title'),
+        'title': row.get('Title', '').strip().title(),  # Normalizing title to lowercase
         'year': int(row.get('Year', 0)),
-        'director': row.get('Director'),
-        'cast': row.get('Cast', ''),
-        'summary': row.get('Summary', ''),
-        'short_summary': row.get('Short Summary', ''),
-        'imdb_id': row.get('IMDB ID', ''),
-        'runtime': row.get('Runtime', ''),
-        'youtube_trailer': row.get('YouTube Trailer', ''),
-        'rating': row.get('Rating', ''),
-        'movie_poster': row.get('Movie Poster', ''),
-        'writers': row.get('Writers', '')
+        'director': row.get('Director', '').strip().title(),
+        'cast': row.get('Cast', '').strip().title(),
+        'summary': row.get('Summary', '').strip().capitalize(),
+        'short_summary': row.get('Short Summary', '').strip().capitalize(),
+        'imdb_id': row.get('IMDB ID', '').strip(),
+        'runtime': row.get('Runtime', '').strip(),
+        'youtube_trailer': row.get('YouTube Trailer', '').strip(),
+        'rating': row.get('Rating', '').strip(),
+        'movie_poster': row.get('Movie Poster', '').strip(),
+        'writers': row.get('Writers', '').strip().title()
     }
+
+'''
+Imports the csv file to the databas
+
+Data cleaning: duplicates removal
+'''
+
+# creating the set to keep the duplicated movies
+movies_to_add = set()
 
 # opening the file in the read mode, encoding utf-8
 with open(csv_path, "r", encoding="utf-8") as csvfile:
     movies_data = DictReader(csvfile)
 
-    # converrting each row of data into a dictionary
+    # converting each row of data into a dictionary
     for row in movies_data:
         mapped_row = map_csv(row)
-        movies_coll.insert_one(mapped_row)
 
+        # creation of the key
+        movie_key = (mapped_row['imdb_id'], mapped_row['title'])
+
+        if movie_key in movies_to_add:
+            print(f"The duplicate found: {mapped_row['title']}, id imdb: {mapped_row['imdb_id']}")
+        else:
+            movies_coll.insert_one(mapped_row)
+            movies_to_add.add(movie_key)
+
+
+# final message informing of the result
 if movies_coll.count_documents({}) != 0:
     print("Movies have successfully been added to the database")
+elif movies_coll.count_documents({}) == 0:
+    print("No movies has been added to the database")
 
 
 
