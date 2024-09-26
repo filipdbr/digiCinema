@@ -17,7 +17,7 @@ cinema_db = client['cinema']
 Part 2: Creation of schema by using a validator & creation of the collection
 '''
 
-# validator.
+# Movies validator
 # Mandatory fiels: title, year and director. The rest is optional.
 # Changed the order of information.
 movies_validator = {
@@ -77,15 +77,40 @@ movies_validator = {
   }
 }
 
-# creation of the collection
-cinema_db.create_collection("movies", validator=movies_validator)
+# Director validator
+director_validator = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["name"],
+        "properties": {
+            "name": {
+                "bsonType": "string",
+                "description": "director name: must be a string and is required"
+            },
+            "movies" : {
+                "bsonType": "array",
+                "items": {
+                    "bsonType": "string",
+                },
+                "description": "list of movies directed by the director: must be a string if provided"
+            }
+        }
+    }
+}
 
-# connection with the collection
+# creation of the collections
+cinema_db.create_collection("movies", validator=movies_validator)
+cinema_db.create_collection("directors", validator=director_validator)
+
+# connection with the collections
 movies_coll = cinema_db["movies"]
+directors_coll = cinema_db["directors"]
 
 # Create a composite index on title and imdb_id, ensuring unique combinations
 # it is necessary as there are some movies with the same title, which are not duplicates
+# added index for the director
 movies_coll.create_index([("title", 1), ("imdb_id", 1)], unique=True)
+directors_coll.create_index("name", unique=True)
 
 '''
 Part 3: importing csv file from local + data cleaning and normalization
@@ -103,8 +128,7 @@ Data normalization and data cleaning:
     - trims the white space
     - provides consistent formatting, such as capitalizing the title and director names
 '''
-
-def map_csv(row):
+def map_csv_movie(row):
     return {
         'title': row.get('Title', '').strip().title(),  # Normalizing title to lowercase
         'year': int(row.get('Year', 0)),
@@ -121,7 +145,7 @@ def map_csv(row):
     }
 
 '''
-Imports the csv file to the databas
+Imports the csv file to the database
 
 Data cleaning: duplicates removal
 '''
@@ -135,8 +159,8 @@ with open(csv_path, "r", encoding="utf-8") as csvfile:
 
     # converting each row of data into a dictionary
     # added tqdm to add some visual effects to the app
-    for row in tqdm(movies_data, desc="Importing movies", unit=" movies"):
-        mapped_row = map_csv(row)
+    for row in tqdm(movies_data, desc="Importing movies data", unit=" movies"):
+        mapped_row = map_csv_movie(row)
 
         # creation of the key
         movie_key = (mapped_row['imdb_id'], mapped_row['title'])
@@ -146,6 +170,15 @@ with open(csv_path, "r", encoding="utf-8") as csvfile:
         else:
             movies_coll.insert_one(mapped_row)
             movies_to_add.add(movie_key)
+
+            director_name = mapped_row['director']
+            movie = mapped_row['title']
+
+            directors_coll.update_one(
+                {"name": director_name},
+                {"$addToSet": {"movies": movie}},
+                upsert=True
+            )
 
 
 # final message informing of the result
